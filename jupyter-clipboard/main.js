@@ -50,17 +50,6 @@ define([
                 var clipboard = new ClipboardJS(
                     button[0],
                     {container: $('#jupyter-clipboard > div > div')[0]})
-                clipboard.on('success', function(e) {
-                    console.info('Action:', e.action);
-                    console.info('Text:', e.text);
-                    console.info('Trigger:', e.trigger);
-
-                    e.clearSelection();
-                });
-                clipboard.on('error', function(e) {
-                    console.error('Action:', e.action);
-                    console.error('Trigger:', e.trigger);
-                });
 
                 var handle_msg=function(msg){
                     button.attr('data-clipboard-text', msg.content.data)
