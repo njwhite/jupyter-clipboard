@@ -10,7 +10,9 @@ define([
     requirejs,
 ) {
 
-    function load_ipython_extension() {
+    function setup(was_delayed) {
+        console.log('running jupyter-clipboard setup, delayed=' + was_delayed)
+
         // not using class `fade`
         var modal = $(`
 <div id='jupyter-clipboard' class="modal bd-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
@@ -67,7 +69,10 @@ define([
             function (err) {
                 console.error(err)
             },
-        );
+        );        
+    }
+
+    function load_ipython_extension() {
 
         callbacks = {
             shell: {
@@ -83,12 +88,27 @@ from ipykernel.comm import Comm
 import pyperclip
 
 comm = Comm(target_name='jupyter-clipboard')
-pyperclip.copy = lambda x: comm.send(x)
+def copy(x):
+    comm.send(x)
+pyperclip.copy = copy
+
+try:
+    import pandas.io.clipboard # has its own fork of pyperclip
+    pandas.io.clipboard.copy = copy
+    pandas.io.clipboard.clipboard_set = copy
+except ImportError:
+    pass
 `,
             callbacks);
-    })
+        })
 
-
+        if (Jupyter.notebook._fully_loaded) {  
+            setup(false);       
+        } else {
+            events.on("notebook_loaded.Notebook", function() {
+                setup(true);
+            })
+        }
     }
 
     return {
