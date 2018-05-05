@@ -83,8 +83,11 @@ except ImportError:
 
 
         // install the hook server-side *after* we've registered the client-side
-        // hook
+        // hook, and trigger now if the kernel is already alive!
         console.debug('installing hook')
+        if (typeof Jupyter.notebook.kernel !== "undefined" && Jupyter.notebook.kernel !== null) {
+            pyperclip();
+        }
         events.on("kernel_ready.Kernel", pyperclip)
 
         requirejs(
