@@ -9,12 +9,8 @@ define([
     $,
     requirejs,
 ) {
-
-    function setup(was_delayed) {
-        console.log('running jupyter-clipboard setup, delayed=' + was_delayed)
-
-        // not using class `fade`
-        var modal = $(`
+    // not using class `fade`
+    var modal = $(`
 <div id='jupyter-clipboard' class="modal bd-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-sm">
     <div class="modal-content">
@@ -23,6 +19,50 @@ define([
   </div>
 </div>
 `)
+
+    function pyperclip() {
+        function handle_msg(msg){
+            var button = $('#jupyter-clipboard > div > div > input')
+            button.attr('data-clipboard-text', msg.content.data)
+            modal.modal('show')
+        }
+        
+        console.debug('registering clipboard')
+        Jupyter.notebook.kernel.comm_manager.register_target(
+            'jupyter-clipboard',
+            (comm, msg) => comm.on_msg(handle_msg));
+        console.debug('registering clipboard...done')
+
+        console.debug("installing pyperclip hook")
+        callbacks = {
+            shell: {
+                reply: (e) => console.log("Installing pyperclip.copy: " + e.content.status)
+            },
+            iopub: {
+                output: (e) => console.log(e)
+            }
+        }
+        Jupyter.notebook.kernel.execute(`
+from ipykernel.comm import Comm
+import pyperclip
+
+comm = Comm(target_name='jupyter-clipboard')
+def copy(x):
+    comm.send(x)
+pyperclip.copy = copy
+
+try:
+    import pandas.io.clipboard # has its own fork of pyperclip
+    pandas.io.clipboard.copy = copy
+    pandas.io.clipboard.clipboard_set = copy
+except ImportError:
+    pass
+`,
+        callbacks);
+    }
+
+    function setup(was_delayed) {
+        console.log('running jupyter-clipboard setup, delayed=' + was_delayed)
         modal.appendTo('body');
 
         var button = $('#jupyter-clipboard > div > div > input')
@@ -41,9 +81,17 @@ define([
             if (cell) cell.select();
         });
 
+
+        // install the hook server-side *after* we've registered the client-side
+        // hook
+        console.debug('installing hook')
+        events.on("kernel_ready.Kernel", pyperclip)
+
         requirejs(
             ['https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.0/clipboard.min.js'],
             function (ClipboardJS) {
+                console.debug('ClipboardJS loaded by requirejs!')
+
                 if (!ClipboardJS.isSupported()) {
                     console.error('ClipboardJS not supported')
                     return
@@ -53,18 +101,9 @@ define([
                     button[0],
                     {container: $('#jupyter-clipboard > div > div')[0]})
 
-                var handle_msg=function(msg){
-                    button.attr('data-clipboard-text', msg.content.data)
-                    modal.modal('show')
-                }
-                
                 // do this after copying to the clipboard, so we re-enable the keyboard manager
                 // *after* we've copied the text from the text area.
                 button.click(() => modal.modal('hide'))
-
-                Jupyter.notebook.kernel.comm_manager.register_target(
-                    'jupyter-clipboard',
-                    (comm, msg) => comm.on_msg(handle_msg));
             },
             function (err) {
                 console.error(err)
@@ -73,42 +112,15 @@ define([
     }
 
     function load_ipython_extension() {
-
-        callbacks = {
-            shell: {
-                reply: (e) => console.log("Installing pyperclip.copy: " + e.content.status)
-            },
-            iopub: {
-                output: (e) => console.log(e)
-            }
-        }
-        events.on("kernel_ready.Kernel", function() {
-            Jupyter.notebook.kernel.execute(`
-from ipykernel.comm import Comm
-import pyperclip
-
-comm = Comm(target_name='jupyter-clipboard')
-def copy(x):
-    comm.send(x)
-pyperclip.copy = copy
-
-try:
-    import pandas.io.clipboard # has its own fork of pyperclip
-    pandas.io.clipboard.copy = copy
-    pandas.io.clipboard.clipboard_set = copy
-except ImportError:
-    pass
-`,
-            callbacks);
-        })
-
         if (Jupyter.notebook._fully_loaded) {  
-            setup(false);       
+            console.debug("notebook _fully_loaded, starting setup")
+            setup(false);
         } else {
             events.on("notebook_loaded.Notebook", function() {
                 setup(true);
             })
         }
+
     }
 
     return {
