@@ -44,12 +44,16 @@ define([
         }
         Jupyter.notebook.kernel.execute(`
 from ipykernel.comm import Comm
-import pyperclip
 
 comm = Comm(target_name='jupyter-clipboard')
 def copy(x):
     comm.send(x)
-pyperclip.copy = copy
+
+try:
+    import pyperclip
+    pyperclip.copy = copy
+except ImportError:
+    pass
 
 try:
     import pandas.io.clipboard # has its own fork of pyperclip
