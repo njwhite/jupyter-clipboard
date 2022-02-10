@@ -50,6 +50,12 @@ def copy(x):
     comm.send(x)
 
 try:
+    import pyperclip
+    pyperclip.copy = copy
+except ImportError:
+    pass
+
+try:
     import pandas.io.clipboard # has its own fork of pyperclip
     pandas.io.clipboard.copy = copy
     pandas.io.clipboard.clipboard_set = copy
